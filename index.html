@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TrapDeck — Beat Machine</title>
+<meta name="description" content="Secuenciador de 16 pasos para beats de trap/hip-hop con 808 sintetizado." />
+<meta name="theme-color" content="#0A0A0D" />
+
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TrapDeck" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.js"></script>
+
+<style>
+  :root{
+    --bg:#0A0A0D; --panel:#15141B; --cell:#1E1C26; --border:#2A2832;
+    --text:#F2F0F7; --muted:#6E6B7B; --muted2:#4A4754; --subtle:#A8A4B5;
+    --pink:#FF2A6D; --green:#C8FF4D; --cyan:#5EE6FF; --purple:#B07CFF; --orange:#FF8A3D; --magenta:#FF5EDB;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Archivo Black',sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:1.5rem 1rem 5rem;}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.5rem;
+    margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+  h1{font-size:2.4rem;letter-spacing:-0.02em;margin:0;}
+  h1 span{color:var(--pink);}
+  .tag{font-size:.7rem;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);}
+
+  .transport{display:flex;flex-wrap:wrap;align-items:center;gap:1.25rem;background:var(--panel);
+    border-radius:14px;padding:1rem;margin-bottom:1.5rem;}
+  .playbtn{width:56px;height:56px;border-radius:50%;border:none;background:var(--cell);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .1s;}
+  .playbtn:active{transform:scale(.95);}
+  .playbtn.playing{background:var(--pink);box-shadow:0 0 24px rgba(255,42,109,.55);}
+  .ctrl{display:flex;flex-direction:column;gap:.25rem;min-width:140px;}
+  .ctrl-row{display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);}
+  input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:var(--cell);width:100%;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--pink);cursor:pointer;border:2px solid var(--bg);}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--pink);
+    cursor:pointer;border:2px solid var(--bg);}
+  .iconbtns{display:flex;gap:.5rem;margin-left:auto;}
+  .iconbtn{width:40px;height:40px;border-radius:10px;border:none;background:var(--cell);color:var(--text);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .iconbtn:hover{background:#262430;}
+
+  .presets{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem;}
+  .preset{font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;
+    padding:.4rem .85rem;border-radius:999px;border:none;background:var(--cell);color:var(--subtle);cursor:pointer;}
+  .preset:hover{background:#262430;}
+
+  .grid{background:var(--panel);border-radius:14px;padding:.85rem;margin-bottom:1.5rem;overflow-x:auto;}
+  .gridinner{min-width:640px;}
+  .row{display:flex;align-items:center;gap:.75rem;padding:.3rem 0;}
+  .tlabel{display:flex;align-items:center;gap:.4rem;width:92px;flex-shrink:0;background:none;border:none;
+    cursor:pointer;padding:0;text-align:left;}
+  .tlabel span{font-family:'JetBrains Mono',monospace;font-size:.68rem;letter-spacing:.04em;color:var(--subtle);}
+  .tlabel svg{flex-shrink:0;width:13px;height:13px;}
+  .steps{display:flex;gap:.4rem;}
+  .step{width:28px;height:28px;border-radius:7px;border:none;cursor:pointer;background:var(--cell);
+    position:relative;outline:none;flex-shrink:0;}
+  .step.group{margin-left:.7rem;}
+  .step.active-step{outline:2px solid var(--text);outline-offset:1px;}
+  .step.roll::after{content:"";position:absolute;inset:0;border-radius:7px;
+    background:repeating-linear-gradient(45deg, rgba(10,10,13,.35) 0 2px, transparent 2px 5px);}
+  .step.muted-on{opacity:.35;}
+
+  .savebar{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
+  .savebar input{flex:1;min-width:160px;font-family:'JetBrains Mono',monospace;font-size:.75rem;
+    padding:.55rem .8rem;border-radius:10px;background:var(--cell);color:var(--text);border:1px solid var(--border);outline:none;}
+  .savebtn{display:flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.7rem;
+    text-transform:uppercase;letter-spacing:.06em;padding:.55rem .9rem;border-radius:10px;border:none;
+    background:var(--cell);color:var(--green);cursor:pointer;}
+
+  .tip{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted2);}
+
+  .install-banner{position:fixed;left:1rem;right:1rem;bottom:1rem;max-width:480px;margin:0 auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:.9rem 1rem;
+    display:none;align-items:center;gap:.8rem;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+  .install-banner.show{display:flex;}
+  .install-banner .txt{flex:1;}
+  .install-banner .txt b{display:block;font-size:.85rem;}
+  .install-banner .txt span{font-size:.72rem;color:var(--muted);}
+  .install-banner button.go{background:var(--pink);color:#0A0A0D;border:none;border-radius:8px;
+    padding:.5rem .9rem;font-weight:700;font-size:.78rem;cursor:pointer;flex-shrink:0;}
+  .install-banner button.close{background:none;border:none;color:var(--muted);cursor:pointer;padding:.3rem;flex-shrink:0;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,10,13,.75);display:none;
+    align-items:center;justify-content:center;padding:1rem;z-index:60;}
+  .modal-overlay.show{display:flex;}
+  .modal{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;padding:1.25rem;}
+  .modal h2{font-size:1.1rem;margin:0 0 1rem;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;}
+  .modal-head button{background:none;border:none;color:var(--muted);cursor:pointer;}
+  .saved-row{display:flex;justify-content:space-between;align-items:center;background:var(--cell);
+    border-radius:10px;padding:.55rem .8rem;margin-bottom:.5rem;cursor:pointer;}
+  .saved-row span{font-family:'JetBrains Mono',monospace;font-size:.75rem;}
+  .saved-row button{background:none;border:none;color:var(--muted);cursor:pointer;}
+  .empty{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--muted);}
+
+  .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;
+    font-size:.75rem;padding:.5rem 1rem;border-radius:999px;background:var(--cell);color:var(--green);
+    border:1px solid var(--border);display:none;z-index:70;}
+  .toast.show{display:block;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1 class="display">TRAP<span>DECK</span></h1>
+    <span class="tag mono">16-step beat machine</span>
+  </header>
+
+  <div class="transport">
+    <button class="playbtn" id="playBtn" aria-label="Play"></button>
+
+    <div class="ctrl">
+      <div class="ctrl-row mono"><span>BPM</span><span id="bpmVal" style="color:var(--green)">140</span></div>
+      <input type="range" id="bpmRange" min="60" max="180" value="140" />
+    </div>
+
+    <div class="ctrl">
+      <div class="ctrl-row mono"><span>SWING</span><span id="swingVal" style="color:var(--cyan)">10%</span></div>
+      <input type="range" id="swingRange" min="0" max="50" value="10" />
+    </div>
+
+    <div class="iconbtns">
+      <button class="iconbtn" id="randomBtn" title="Random" data-icon="shuffle"></button>
+      <button class="iconbtn" id="clearBtn" title="Clear" data-icon="trash-2"></button>
+      <button class="iconbtn" id="loadBtn" title="Load" data-icon="folder-open"></button>
+    </div>
+  </div>
+
+  <div class="presets" id="presets"></div>
+
+  <div class="grid">
+    <div class="gridinner" id="gridInner"></div>
+  </div>
+
+  <div class="savebar">
+    <input type="text" id="saveName" placeholder="Nombra este patrón" />
+    <button class="savebtn" id="saveBtn" data-icon="save">Guardar</button>
+  </div>
+
+  <p class="tip">Tip — toca un paso de hi-hat dos veces para un roll triplet, tres veces para borrarlo.</p>
+</div>
+
+<div class="install-banner" id="installBanner">
+  <div class="txt"><b>Instala TrapDeck</b><span>Úsala como app, sin conexión</span></div>
+  <button class="go" id="installGo">Instalar</button>
+  <button class="close" id="installClose" data-icon="x"></button>
+</div>
+
+<div class="modal-overlay" id="loadModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 class="display">GUARDADOS</h2>
+      <button id="closeModal" data-icon="x"></button>
+    </div>
+    <div id="savedList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STEPS = 16;
+const TRACKS = [
+  { id: "kick", label: "KICK", color: "#FF2A6D", rollable: false },
+  { id: "clap", label: "CLAP", color: "#FF8A3D", rollable: false },
+  { id: "bass", label: "808", color: "#C8FF4D", rollable: false },
+  { id: "hatC", label: "HI-HAT", color: "#5EE6FF", rollable: true },
+  { id: "hatO", label: "OPEN HAT", color: "#B07CFF", rollable: false },
+  { id: "perc", label: "PERC", color: "#FF5EDB", rollable: false },
+];
+
+const emptyPattern = () => {
+  const p = {};
+  TRACKS.forEach(t => p[t.id] = Array(STEPS).fill(0));
+  return p;
+};
+
+const PRESETS = {
+  "Classic Trap": {
+    kick: [1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0],
+    clap: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    bass: [1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0],
+    hatC: [1,1,2,1,1,1,2,1,1,1,2,1,1,1,2,1],
+    hatO: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+    perc: [0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0],
+  },
+  "Half-Time Roll": {
+    kick: [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+    clap: [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    bass: [1,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0],
+    hatC: [1,0,2,0,1,0,2,0,1,0,2,0,1,0,2,2],
+    hatO: [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+    perc: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+  },
+  "Sparse": {
+    kick: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    clap: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    bass: [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    hatC: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,2],
+    hatO: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    perc: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  },
+};
+
+let pattern = JSON.parse(JSON.stringify(PRESETS["Classic Trap"]));
+let bpm = 140, swing = 0.1, isPlaying = false, currentStep = -1;
+let muted = {}; TRACKS.forEach(t => muted[t.id] = false);
+let synths = null, sequence = null;
+
+function buildSynths() {
+  const kick = new Tone.MembraneSynth({ pitchDecay:0.06, octaves:7,
+    envelope:{attack:0.001,decay:0.35,sustain:0} }).toDestination();
+  kick.volume.value = -4;
+
+  const clap = new Tone.NoiseSynth({ noise:{type:"white"},
+    envelope:{attack:0.001,decay:0.18,sustain:0} }).toDestination();
+  clap.volume.value = -10;
+
+  const bass = new Tone.MonoSynth({ oscillator:{type:"sine"},
+    envelope:{attack:0.01,decay:0.5,sustain:0.6,release:0.8},
+    filterEnvelope:{attack:0.01,decay:0.3,sustain:0.4,baseFrequency:80,octaves:3} }).toDestination();
+  bass.volume.value = -6;
+
+  const hatC = new Tone.MetalSynth({ envelope:{attack:0.001,decay:0.045,release:0.01},
+    harmonicity:5.1, modulationIndex:32, resonance:4000, octaves:1.2 }).toDestination();
+  hatC.volume.value = -20;
+
+  const hatO = new Tone.MetalSynth({ envelope:{attack:0.001,decay:0.28,release:0.05},
+    harmonicity:5.1, modulationIndex:32, resonance:3500, octaves:1.5 }).toDestination();
+  hatO.volume.value = -20;
+
+  const perc = new Tone.Synth({ oscillator:{type:"triangle"},
+    envelope:{attack:0.001,decay:0.15,sustain:0} }).toDestination();
+  perc.volume.value = -14;
+
+  return { kick, clap, bass, hatC, hatO, perc };
+}
+
+function triggerTrack(id, time) {
+  if (muted[id]) return;
+  const s = synths;
+  if (id === "kick") s.kick.triggerAttackRelease("C1", "8n", time);
+  if (id === "clap") s.clap.triggerAttackRelease("16n", time);
+  if (id === "bass") s.bass.triggerAttackRelease("C1", "4n", time);
+  if (id === "hatC") s.hatC.triggerAttackRelease("16n", time);
+  if (id === "hatO") s.hatO.triggerAttackRelease("8n", time);
+  if (id === "perc") s.perc.triggerAttackRelease("E5", "16n", time);
+}
+
+function stepCallback(time, step) {
+  TRACKS.forEach(t => {
+    const val = pattern[t.id][step];
+    if (!val) return;
+    if (t.rollable && val === 2) {
+      const third = Tone.Time("16n").toSeconds() / 3;
+      triggerTrack(t.id, time);
+      triggerTrack(t.id, time + third);
+      triggerTrack(t.id, time + third * 2);
+    } else {
+      triggerTrack(t.id, time);
+    }
+  });
+  Tone.Draw.schedule(() => { currentStep = step; renderGrid(); }, time);
+}
+
+async function togglePlay() {
+  await Tone.start();
+  if (!synths) {
+    synths = buildSynths();
+    sequence = new Tone.Sequence((time, step) => stepCallback(time, step),
+      Array.from({length: STEPS}, (_, i) => i), "16n");
+    sequence.start(0);
+  }
+  if (isPlaying) {
+    Tone.Transport.stop();
+    isPlaying = false;
+    currentStep = -1;
+  } else {
+    Tone.Transport.start();
+    isPlaying = true;
+  }
+  renderTransport();
+  renderGrid();
+}
+
+function cycleStep(trackId, idx, rollable) {
+  const max = rollable ? 2 : 1;
+  pattern[trackId][idx] = (pattern[trackId][idx] + 1) > max ? 0 : pattern[trackId][idx] + 1;
+  renderGrid();
+}
+
+function clearAll() { pattern = emptyPattern(); renderGrid(); }
+
+function randomize() {
+  const prob = { kick:0.2, clap:0.18, bass:0.22, hatC:0.55, hatO:0.12, perc:0.15 };
+  const next = {};
+  TRACKS.forEach(t => {
+    next[t.id] = Array.from({length: STEPS}, () => {
+      if (Math.random() > prob[t.id]) return 0;
+      if (t.rollable && Math.random() < 0.25) return 2;
+      return 1;
+    });
+  });
+  pattern = next;
+  renderGrid();
+}
+
+function loadPreset(name) { pattern = JSON.parse(JSON.stringify(PRESETS[name])); renderGrid(); }
+function toggleMute(id) { muted[id] = !muted[id]; renderGrid(); }
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2000);
+}
+
+function savePattern() {
+  const input = document.getElementById("saveName");
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    localStorage.setItem("trapdeck:" + name, JSON.stringify({ pattern, bpm, swing }));
+    showToast('Guardado "' + name + '"');
+    input.value = "";
+  } catch (e) { showToast("No se pudo guardar"); }
+}
+
+function getSavedNames() {
+  const names = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith("trapdeck:")) names.push(k.replace("trapdeck:", ""));
+  }
+  return names;
+}
+
+function loadSaved(name) {
+  try {
+    const raw = localStorage.getItem("trapdeck:" + name);
+    if (raw) {
+      const data = JSON.parse(raw);
+      pattern = data.pattern; bpm = data.bpm; swing = data.swing;
+      document.getElementById("bpmRange").value = bpm;
+      document.getElementById("swingRange").value = Math.round(swing * 100);
+      Tone.Transport.bpm.value = bpm;
+      Tone.Transport.swing = swing;
+      renderTransport(); renderGrid();
+      showToast('Cargado "' + name + '"');
+    }
+  } catch (e) { showToast("No se pudo cargar"); }
+  document.getElementById("loadModal").classList.remove("show");
+}
+
+function deleteSaved(name, e) {
+  e.stopPropagation();
+  localStorage.removeItem("trapdeck:" + name);
+  renderSavedList();
+}
+
+function renderSavedList() {
+  const wrap = document.getElementById("savedList");
+  const names = getSavedNames();
+  if (names.length === 0) {
+    wrap.innerHTML = '<p class="empty">Aún no hay patrones guardados.</p>';
+    return;
+  }
+  wrap.innerHTML = "";
+  names.forEach(name => {
+    const row = document.createElement("div");
+    row.className = "saved-row";
+    row.onclick = () => loadSaved(name);
+    const span = document.createElement("span");
+    span.textContent = name;
+    const btn = document.createElement("button");
+    btn.innerHTML = '<svg data-icon="trash-2" width="13" height="13"></svg>';
+    btn.onclick = (e) => deleteSaved(name, e);
+    row.appendChild(span); row.appendChild(btn);
+    wrap.appendChild(row);
+  });
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderTransport() {
+  const btn = document.getElementById("playBtn");
+  btn.classList.toggle("playing", isPlaying);
+  btn.innerHTML = isPlaying
+    ? '<svg data-icon="square" width="22" height="22" fill="#0A0A0D" stroke="#0A0A0D"></svg>'
+    : '<svg data-icon="play" width="22" height="22" fill="#F2F0F7" stroke="#F2F0F7"></svg>';
+  document.getElementById("bpmVal").textContent = bpm;
+  document.getElementById("swingVal").textContent = Math.round(swing * 100) + "%";
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderPresets() {
+  const wrap = document.getElementById("presets");
+  wrap.innerHTML = "";
+  Object.keys(PRESETS).forEach(name => {
+    const btn = document.createElement("button");
+    btn.className = "preset";
+    btn.textContent = name;
+    btn.onclick = () => loadPreset(name);
+    wrap.appendChild(btn);
+  });
+}
+
+function renderGrid() {
+  const wrap = document.getElementById("gridInner");
+  wrap.innerHTML = "";
+  TRACKS.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const labelBtn = document.createElement("button");
+    labelBtn.className = "tlabel";
+    labelBtn.onclick = () => toggleMute(t.id);
+    const iconName = muted[t.id] ? "volume-x" : "volume-2";
+    const iconColor = muted[t.id] ? "#4A4754" : t.color;
+    labelBtn.innerHTML = '<svg data-icon="' + iconName + '" width="13" height="13" style="color:' + iconColor + '"></svg>' +
+      '<span style="color:' + (muted[t.id] ? "#4A4754" : "#A8A4B5") + '">' + t.label + '</span>';
+    row.appendChild(labelBtn);
+
+    const steps = document.createElement("div");
+    steps.className = "steps";
+    pattern[t.id].forEach((val, i) => {
+      const cell = document.createElement("button");
+      cell.className = "step" + (i % 4 === 0 && i !== 0 ? " group" : "") +
+        (currentStep === i ? " active-step" : "") +
+        (val === 2 ? " roll" : "") +
+        (val && muted[t.id] ? " muted-on" : "");
+      cell.style.background = val ? t.color : "#1E1C26";
+      cell.onclick = () => cycleStep(t.id, i, t.rollable);
+      steps.appendChild(cell);
+    });
+    row.appendChild(steps);
+    wrap.appendChild(row);
+  });
+}
+
+document.getElementById("playBtn").addEventListener("click", togglePlay);
+document.getElementById("bpmRange").addEventListener("input", (e) => {
+  bpm = Number(e.target.value);
+  document.getElementById("bpmVal").textContent = bpm;
+  Tone.Transport.bpm.value = bpm;
+});
+document.getElementById("swingRange").addEventListener("input", (e) => {
+  swing = Number(e.target.value) / 100;
+  document.getElementById("swingVal").textContent = Math.round(swing * 100) + "%";
+  Tone.Transport.swing = swing;
+  Tone.Transport.swingSubdivision = "16n";
+});
+document.getElementById("randomBtn").addEventListener("click", randomize);
+document.getElementById("clearBtn").addEventListener("click", clearAll);
+document.getElementById("loadBtn").addEventListener("click", () => {
+  renderSavedList();
+  document.getElementById("loadModal").classList.add("show");
+});
+document.getElementById("closeModal").addEventListener("click", () => {
+  document.getElementById("loadModal").classList.remove("show");
+});
+document.getElementById("loadModal").addEventListener("click", (e) => {
+  if (e.target.id === "loadModal") e.currentTarget.classList.remove("show");
+});
+document.getElementById("saveBtn").addEventListener("click", savePattern);
+
+renderPresets();
+renderGrid();
+renderTransport();
+if (window.lucide) lucide.createIcons();
+
+// ---- PWA install ----
+let deferredPrompt = null;
+const banner = document.getElementById("installBanner");
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  banner.classList.add("show");
+});
+
+document.getElementById("installGo").addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  banner.classList.remove("show");
+});
+
+document.getElementById("installClose").addEventListener("click", () => {
+  banner.classList.remove("show");
+});
+
+window.addEventListener("appinstalled", () => {
+  banner.classList.remove("show");
+  showToast("TrapDeck instalado");
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
